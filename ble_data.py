@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 from bluepy import btle
 
+#RSSI to meter convertor
+def rssi2m(rssi, A=62, n=4.21):
+  return pow(10, (-(rssi+A)/(10.0*n)))
+
 class BleDataFetch(object):
   def __init__(self, timeout = 0.1):
     self.timeout = timeout

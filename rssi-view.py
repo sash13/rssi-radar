@@ -15,7 +15,7 @@ def process(fetch):
   devices = fetch.fetch()
   clear()
   for device in devices:
-    print(device, devices[device])
+    print(device, devices[device], rssi2m(devices[device]))
   sys.stdout.flush()
 
 fetch = BleDataFetch(timeout = timeout)

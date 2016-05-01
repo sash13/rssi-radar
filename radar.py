@@ -48,6 +48,7 @@ class Application(tk.Frame):
       if addr not in self.nodes:
         self.nodes[addr] = Point(self.canvas, (WIDTH/2, HEIGHT/2)) 
 
+      self.nodes[addr].setText(rssi2m(fetch_nodes[addr]))
       self.nodes[addr].go(fetch_nodes[addr])
       self.nodes[addr].count = 0
       self.nodes[addr].setState('blue')
@@ -72,6 +73,7 @@ class Point(tk.Frame):
   def __init__(self, parent, c, r=0, center=False):
     self.c = c
     self.r = r
+    self.text = ''
     self.goTo = 0
     self.p = parent
     self.center = center
@@ -91,6 +93,9 @@ class Point(tk.Frame):
     else:
       self.fill = "blue"
 
+  def setText(self, f):
+    self.text = str(round(f, 2))
+
   def tick(self, tick=0.1):
     self.r += self.goTo*tick
 
@@ -100,9 +105,11 @@ class Point(tk.Frame):
     r = int(self.r)
     if orbit:
       self.p.create_circle(WIDTH/2, HEIGHT/2, r, width=1)
-    self.p.create_circle(WIDTH/2 - r*math.cos(self.angle),
-                         HEIGHT/2 - r*math.sin(self.angle),
-                         self.size, fill=self.fill , outline=self.outline, width=2)
+    x = WIDTH/2 - r*math.cos(self.angle)
+    y = HEIGHT/2 - r*math.sin(self.angle)
+    self.p.create_circle(x, y, self.size,
+                         fill=self.fill , outline=self.outline, width=2)
+    self.p.create_text(x+20, y, text=self.text)
 
 fetch = BleDataFetch()
 

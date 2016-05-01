@@ -109,7 +109,10 @@ class Point(tk.Frame):
     y = HEIGHT/2 - r*math.sin(self.angle)
     self.p.create_circle(x, y, self.size,
                          fill=self.fill , outline=self.outline, width=2)
-    self.p.create_text(x+20, y, text=self.text)
+    pi = math.pi
+    x = x+20 if self.angle < pi/2 or self.angle > (3*pi/2) else x-20
+    y = y+20 if self.angle < pi else y-20
+    self.p.create_text(x, y, text=self.text)
 
 fetch = BleDataFetch()
 

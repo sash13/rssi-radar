@@ -1,81 +1,82 @@
-#!/usr/bin/env python
-### BLE radar
-# This sketch for searching Bluetooth 4.0 Smart BLE whatever
-# For propertly work you must install bluepy https://github.com/IanHarvey/bluepy
-# For testing type in console:
-#   $ sudo hciconfig hci0 up
-#   $ sudo python radar.py
-# And find or power on you BLE tags
+#! /usr/bin/env python
+import pygtk
+pygtk.require('2.0')
+import gtk, gobject, cairo
 
-import Tkinter as tk
 from ble_data import *
 import math
 import random
 
-WIDTH = 400
-HEIGHT = 400
 TIMEOUT_COUNT = 20
+MUL = 50
 
-#thx to `mgold` from sof
-def _create_circle(self, x, y, r, **kwargs):
-  return self.create_oval(x-r, y-r, x+r, y+r, **kwargs)  
-tk.Canvas.create_circle = _create_circle
+def progress_timeout(object):
+  x, y, w, h = object.allocation
+  object.window.invalidate_rect((0,0,w,h),False)
+  return True
 
-class Application(tk.Frame):
-  def __init__(self, master=None, data=None):
-    tk.Frame.__init__(self, master, width=WIDTH, height=HEIGHT)
-    master.protocol("WM_DELETE_WINDOW", self.closeWindow)
-    self.data = data
-    self.master = master
+# Create a GTK+ widget on which we will draw using Cairo
+class Screen(gtk.DrawingArea):
 
-    canvas = self.canvas = tk.Canvas(master, width=WIDTH, height=HEIGHT, bg = "white")
-    canvas.pack()
+  # Draw in response to an expose-event
+  __gsignals__ = { "expose-event": "override" }
 
-    self.node_center = Point(canvas, (WIDTH/2, HEIGHT/2)) 
-    self.node_center.fill = 'black'
-
+  def __init__(self, fetch):
+    gtk.DrawingArea.__init__(self)
+    self.timer = gobject.timeout_add (100, progress_timeout, self)
+    self.data = fetch
     self.nodes = {}
-    self.updateNodes()
-    self.updateCanvas()
+    self.update = gobject.timeout_add (1000, self.updateNodes, self)
 
-  def closeWindow(self):
-    self.data.stop()
-    self.master.destroy()
-
-  def updateNodes(self):
+  def updateNodes(self, event):
     fetch_nodes = self.data.fetch()
     for addr in fetch_nodes:
       if addr not in self.nodes:
-        self.nodes[addr] = Point(self.canvas, (WIDTH/2, HEIGHT/2)) 
+        self.nodes[addr] = Point() 
 
       self.nodes[addr].setText(rssi2m(fetch_nodes[addr]))
-      self.nodes[addr].go(fetch_nodes[addr])
+      self.nodes[addr].go(rssi2m(fetch_nodes[addr]))
       self.nodes[addr].count = 0
       self.nodes[addr].setState('blue')
-
     for addr in self.nodes.keys():
       if addr not in fetch_nodes:
         self.nodes[addr].setState('yellow')
         self.nodes[addr].count += 1
         if self.nodes[addr].count > TIMEOUT_COUNT:
           del self.nodes[addr]
+    return True
 
-  def updateCanvas(self):
-    self.updateNodes()
-    self.canvas.delete("all")
-    self.node_center.draw()
+  # Handle the expose-event by drawing
+  def do_expose_event(self, event):
+    # Create the cairo context
+    cr = self.window.cairo_create()
+
+    # Restrict Cairo to the exposed area; avoid extra work
+    cr.rectangle(event.area.x, event.area.y,
+        event.area.width, event.area.height)
+    cr.clip()
+    self.draw(cr, *self.window.get_size())
+
+  def draw(self, cr, width, height):
+    # Fill the background with gray
+    cr.set_source_rgb(0.5, 1.0, 1.0)
+    cr.rectangle(0, 0, width, height)
+    cr.fill()
+
+    cr.set_source_rgb(0.0, 0.5, 0.0)
+    cr.arc(width / 2.0, height / 2.0, 10, 0, 2 * math.pi)
+    cr.fill()
+
     for node in self.nodes:
       self.nodes[node].tick()
-      self.nodes[node].draw(orbit=True)
-    self.master.after(100, self.updateCanvas)
+      self.nodes[node].draw(cr, width, height, orbit=True)
 
-class Point(tk.Frame):
-  def __init__(self, parent, c, r=0, center=False):
-    self.c = c
+class Point():
+  def __init__(self, r=0, center=False):
     self.r = r
     self.text = ''
     self.goTo = 0
-    self.p = parent
+    self.p = 0
     self.center = center
 
     self.angle = random.uniform(0, math.pi*2)
@@ -99,26 +100,41 @@ class Point(tk.Frame):
   def tick(self, tick=0.1):
     self.r += self.goTo*tick
 
-  def draw(self, r=None, orbit=False):
+  def draw(self, cr, width, height, r=None, orbit=False):
+    pi = math.pi
     if r:
       self.r = r
-    r = int(self.r)
+    r = int(self.r*MUL)
     if orbit:
-      self.p.create_circle(WIDTH/2, HEIGHT/2, r, width=1)
-    x = WIDTH/2 - r*math.cos(self.angle)
-    y = HEIGHT/2 - r*math.sin(self.angle)
-    self.p.create_circle(x, y, self.size,
-                         fill=self.fill , outline=self.outline, width=2)
-    pi = math.pi
-    x = x+20 if self.angle < pi/2 or self.angle > (3*pi/2) else x-20
-    y = y+20 if self.angle < pi else y-20
-    self.p.create_text(x, y, text=self.text)
+      cr.set_source_rgb(1.0, 0.0, 0.0)
+      cr.arc(width / 2.0, height / 2.0, r, 0, 2 * pi)
+      cr.stroke()
 
-fetch = BleDataFetch()
+    x = width/2 - r*math.cos(self.angle)
+    y = height/2 - r*math.sin(self.angle)
 
-master = tk.Tk()
-master.resizable(width=0, height=0)
-app = Application(master, data = fetch)
+    cr.set_source_rgb(1.0, 0.0, 0.0)
+    cr.arc(x, y, self.size, 0, 2 * pi)
+    cr.fill()
 
-app.master.title('BLE Viewer')
-app.mainloop()
+    x = x+10 if self.angle < pi/2 or self.angle > (3*pi/2) else x-10
+    y = y+10 if self.angle < pi else y-10
+    cr.select_font_face("Purisa", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    cr.set_font_size(13)
+    cr.move_to(x, y)
+    cr.show_text(self.text)
+
+# GTK mumbo-jumbo to show the widget in a window and quit when it's closed
+def run(Widget):
+  fetch = BleDataFetch(timeout = 0.1)
+  window = gtk.Window()
+  window.set_title('BLE Viewer')
+  window.connect("delete-event", gtk.main_quit)
+  widget = Widget(fetch)
+  widget.show()
+  window.add(widget)
+  window.present()
+  gtk.main()
+
+if __name__ == "__main__":
+  run(Screen)

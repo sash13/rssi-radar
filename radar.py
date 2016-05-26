@@ -1,4 +1,12 @@
 #! /usr/bin/env python
+### BLE radar
+# This sketch for searching Bluetooth 4.0 Smart BLE whatever
+# For propertly work you must install bluepy https://github.com/IanHarvey/bluepy
+# For testing type in console:
+#   $ sudo hciconfig hci0 up
+#   $ sudo python radar.py
+# And find or power on you BLE tags
+
 import pygtk
 pygtk.require('2.0')
 import gtk, gobject, cairo
